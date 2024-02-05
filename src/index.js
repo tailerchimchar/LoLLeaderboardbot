@@ -3,20 +3,23 @@ const {Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField, Permissions
 const client = new Client({intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]})
 
 client.on("ready", (x) => {
+   // Making sure that the author of the message is not a bot.
+  if (message.author.bot) return false;
+
   console.log(`${x.user.tag} is ready! `);
-  client.user.setActivity('Coding in Justins bazoongas');
+  client.user.setActivity('added in addsummoner');
 
   const ping = new SlashCommandBuilder()
-  .setName('ping')
-  .setDescription("This is a ping");
+  .setName('addsummoner')
+  .setDescription("Adding in a summoner to the database");
 
   client.application.commands.create(ping);
 })
 
 client.on('interactionCreate', (interaction) =>{
   if(!interaction.isChatInputCommand()) return;
-  if(interaction.commandName==='ping'){
-    interaction.reply('PONG!');
+  if(interaction.commandName==='addsummoner'){
+    interaction.reply('adding in a new summoner!');
   }
 })
 
