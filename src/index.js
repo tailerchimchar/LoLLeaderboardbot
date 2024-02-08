@@ -1,4 +1,5 @@
 require('dotenv').config();
+const spawn = require('child_process').spawn; 
 const {Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField, Permissions, SlashCommandBuilder} = require('discord.js');
 const client = new Client({intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]})
 const mongoose = require('mongoose');
@@ -17,7 +18,7 @@ const Summoner = mongoose.model('Summoner', summonerSchema);
 
 client.on("ready", (x) => {
   console.log(`${x.user.tag} is ready! `);
-  client.user.setActivity('adding in fetchallsummoners');
+  client.user.setActivity('adding in removesummoner');
 
   // creating commands
   const getallsummoners = new SlashCommandBuilder()
@@ -105,6 +106,26 @@ async function addSummoner(IGN, Rank, LP, Wins, Losses) {
 
 //addSummoner('issariu', 'Grandmaster', 382, 79, 55)
 
+async function getSummonerInformation(){
+  try{
+    const py = spawn('python', ['rankfinder.py']); 
+    resultString = ''; 
+    py.stdout.on('data', function (stdData) { 
+      resultString += stdData.toString(); 
+    }); 
+
+    py.stdout.on('end', function () { 
+      let resultData = resultString; 
+      
+      let test = resultData; 
+      console.log(test); 
+    });
+  }
+  catch (error){
+    console.log(error);
+  }
+}
+
 async function fetchAllSummoners() {
   try {
     const summoners = await Summoner.find(); 
@@ -115,6 +136,7 @@ async function fetchAllSummoners() {
 }
 
 fetchAllSummoners();
+getSummonerInformation();
 
 
 client.login(process.env.TOKEN);
