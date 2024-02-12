@@ -47,8 +47,33 @@ client.on('interactionCreate', async (interaction) =>{
   if(!interaction.isChatInputCommand()) return;
   
   if(interaction.commandName==='addsummoner'){
-    interaction.reply('adding in a new summoner!');
+    try {
+      console.log('printing here');
+      // Call your web scraping function to retrieve summoner data
+      const summonerData = await getSummonerInformation();
+
+
+      // Create a new Summoner instance with the retrieved data
+      const summoner = new Summoner({
+        ign: summonerData.IGN,
+        rank: summonerData.Rank,
+        lp: summonerData.LP
+        
+      });
+      console.log('printing here');
+      console.log(summoner.IGN);
+      console.log(summonerData.IGN);
+       // Save the summoner to the database
+       await summoner.save();
+
+
+    interaction.reply('New summoner added successfully!');
+  }catch (error) {
+    console.error('Error adding summoner:', error);
+    await interaction.reply('Failed to add summoner.');
   }
+}
+
   else if (interaction.commandName === 'getallsummoners') 
   {
     try 
@@ -78,25 +103,7 @@ const connectToDatabase = async () => {
   }
 };
 
-async function addSummoner(IGN, Rank, LP, Wins, Losses) {
-  const winRate = Wins / (Wins + Losses) * 100;
-  
-  const summoner = new Summoner({
-    IGN,
-    Rank,
-    LP,
-    Wins,
-    Losses,
-    WinRate: winRate
-  });
 
-  try {
-    const result = await summoner.save();
-    console.log(result);
-  } catch (error) {
-    console.error('Error saving the summoner:', error);
-  }
-}
 
 //addSummoner('Summoner1', 'Grandmaster', 500, 200, 100);
 //addSummoner('Summoner2', 'Master', 400, 150, 80);
