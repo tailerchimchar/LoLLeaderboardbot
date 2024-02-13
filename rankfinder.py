@@ -1,5 +1,11 @@
 from bs4 import BeautifulSoup
 import urllib3
+import sys
+import re
+
+
+SERVER = sys.argv[2]
+USERNAME = sys.argv[1]
 
 """
         Parameters
@@ -11,13 +17,22 @@ import urllib3
 """
 def retrieve_rank(server, username):
     
-    url = f"https://www.op.gg/summoners/{server.lower()}/{username}"
+    url = f"https://www.op.gg/summoners/{SERVER.lower()}/{USERNAME}"
     http = urllib3.PoolManager()
     response = http.request('GET', url, decode_content=True)
     reply = response.data
 
     soup = BeautifulSoup(reply, 'html.parser')
     tier_div = soup.find("div", {"class": "tier"})
+    win = soup.find("div", {"class": "win-lose"}).text
+    win_lose_parts = win.split()
+
+    wins = int(win_lose_parts[0][:-1])
+    losses = int(win_lose_parts[1][:-1])
+    
+    total_games = wins + losses
+    winrate = (wins / total_games * 100) if total_games > 0 else 0
+
     contents = tier_div.contents
     lp = soup.find("div", {"class": "lp"}).contents[0]
     #wins = soup.find("div", {"class": "wins"}).contents[0]
@@ -28,31 +43,45 @@ def retrieve_rank(server, username):
         if isinstance(content, str) and content != " ":
             div_lp += content
 
-    print(username)
+    print(USERNAME)
     print(div_lp)
     print(f"{lp} lp")
+    try:
+      print("win/loss")
+      print(win)
+      print(wins)
+      print(losses)
+
+    except:
+      print("wins doesn't work")
 
     return {
-        'IGN': username,
+        'IGN': USERNAME,
         'Rank': div_lp,
-        'LP': lp
+        'LP': lp,
+        'Wins': wins,
+        'Losses': losses,
+        'Winrate': "{:.2f}%".format(winrate)
     }
 
+rank = retrieve_rank(SERVER,USERNAME)
+
+print(rank)
 # example usage
-test = retrieve_rank('na', 'Blonde-Blue')
-print('justin sucks')
-print(test)
-print()
-retrieve_rank('na', 'issariu-NA1')
-print()
+#test = retrieve_rank('na', 'Blonde-Blue')
+#print('justin sucks')
+#print(test)
+#print()
+#retrieve_rank('na', 'issariu-NA1')
+#print()
 
-retrieve_rank('na', 'Kraymos-NA1')
-print()
+#retrieve_rank('na', 'Kraymos-NA1')
+#print()
 
-retrieve_rank('na', 'poisonberri-YAS')
-print()
+#retrieve_rank('na', 'poisonberri')
+#print()
 
-retrieve_rank('na', 'december 31 1999-65936')
-print()
+#retrieve_rank('na', 'december 31 1999-65936')
+#print()
 
 # retrieve_rank('kr', 'Hide on Bush-KR1')

@@ -1,5 +1,5 @@
 require('dotenv').config();
-const spawn = require('child_process').spawn; 
+const { spawn } = require('child_process');
 const {Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField, Permissions, SlashCommandBuilder} = require('discord.js');
 const client = new Client({intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]})
 const mongoose = require('mongoose');
@@ -27,7 +27,15 @@ client.on("ready", (x) => {
 
   const addsummoner = new SlashCommandBuilder()
   .setName('addsummoner')
-  .setDescription("Adding in a summoner to the database");
+  .setDescription("Adding in a summoner to the database")
+  .addStringOption(option =>
+    option.setName('summonername')
+        .setDescription('The name of the summoner to add.')
+        .setRequired(true))
+          .addStringOption(option =>
+    option.setName('tag')
+        .setDescription('The tag of the summoner to add.')
+        .setRequired(true));;
 
   connectToDatabase();
 
@@ -48,27 +56,18 @@ client.on('interactionCreate', async (interaction) =>{
   
   if(interaction.commandName==='addsummoner'){
     try {
-      console.log('printing here');
-      // Call your web scraping function to retrieve summoner data
-      const summonerData = await getSummonerInformation();
+      await interaction.deferReply();
+      const summonerName = interaction.options.getString('summonername');
+      const tag = interaction.options.getString('tag');
 
+      var summonerNameAndTag = summonerName + "#" + tag;
+      console.log(summonerNameAndTag);
 
-      // Create a new Summoner instance with the retrieved data
-      const summoner = new Summoner({
-        ign: summonerData.IGN,
-        rank: summonerData.Rank,
-        lp: summonerData.LP
-        
-      });
-      console.log('printing here');
-      console.log(summoner.IGN);
-      console.log(summonerData.IGN);
-       // Save the summoner to the database
-       await summoner.save();
+      var summoner_info = await getSummonerInformation(summonerName, tag);
 
-
-    interaction.reply('New summoner added successfully!');
-  }catch (error) {
+      console.log(summoner_info)
+       await interaction.editReply(summonerName + ' added successfully!');
+      }catch (error) {
     console.error('Error adding summoner:', error);
     await interaction.reply('Failed to add summoner.');
   }
@@ -116,22 +115,46 @@ const connectToDatabase = async () => {
 async function getSummonerInformation(){
   try{
     const py = spawn('python', ['rankfinder.py']); 
-    resultString = ''; 
+    resultString = '';
     py.stdout.on('data', function (stdData) { 
       resultString += stdData.toString(); 
     }); 
 
     py.stdout.on('end', function () { 
       let resultData = resultString; 
-      
-      let test = resultData; 
-      console.log(test); 
     });
   }
   catch (error){
     console.log(error);
   }
 }
+
+async function getSummonerInformation(summonerName, tag) {
+  return new Promise((resolve, reject) => {
+    try {
+      // Make sure to include the path to your Python script accurately
+      const py = spawn('python', ['rankfinder.py', summonerName, tag]);
+      let resultString = '';
+
+      py.stdout.on('data', (stdData) => {
+        resultString += stdData.toString();
+      });
+
+      py.stdout.on('end', () => {
+        resolve(resultString);
+      });
+
+      py.stderr.on('data', (data) => {
+        reject(data.toString());
+      });
+
+    } catch (error) {
+      console.log(error);
+      reject(error);
+    }
+  });
+}
+
 
 async function fetchAllSummoners() {
   try {
