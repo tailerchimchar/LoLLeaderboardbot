@@ -4,8 +4,17 @@ import sys
 import re
 
 
-SERVER = sys.argv[2]
+
+
+
+
 USERNAME = sys.argv[1]
+SERVER = sys.argv[2]
+OFFICIAL_SERVER = sys.argv[3]
+print(USERNAME)
+print(SERVER)
+print(OFFICIAL_SERVER)
+
 
 """
         Parameters
@@ -15,9 +24,10 @@ USERNAME = sys.argv[1]
         username : str
             The username and the Riot tag seperated by a "-" -> "your_name-Riot_tag"
 """
-def retrieve_rank(server, username):
+def retrieve_rank(server, username,OFFICIAL_SERVER):
     
-    url = f"https://www.op.gg/summoners/{SERVER.lower()}/{USERNAME}"
+    url = f"https://www.op.gg/summoners/{OFFICIAL_SERVER}/{username}-{server.lower()}"
+    print("url is: " + url)
     http = urllib3.PoolManager()
     response = http.request('GET', url, decode_content=True)
     reply = response.data
@@ -51,6 +61,7 @@ def retrieve_rank(server, username):
       print(win)
       print(wins)
       print(losses)
+      print("this is the server output: " + OFFICIAL_SERVER)
 
     except:
       print("wins doesn't work")
@@ -64,7 +75,7 @@ def retrieve_rank(server, username):
         'Winrate': "{:.2f}%".format(winrate)
     }
 
-rank = retrieve_rank(SERVER,USERNAME)
+rank = retrieve_rank(SERVER,USERNAME,OFFICIAL_SERVER)
 
 print(rank)
 # example usage
