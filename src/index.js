@@ -25,6 +25,7 @@ client.on("ready", (x) => {
   .setName('getallsummoners')
   .setDescription("Retrieve all summoners from the database");
 
+  
   const addsummoner = new SlashCommandBuilder()
   .setName('addsummoner')
   .setDescription("Adding in a summoner to the database")
@@ -35,7 +36,12 @@ client.on("ready", (x) => {
           .addStringOption(option =>
     option.setName('tag')
         .setDescription('The tag of the summoner to add.')
-        .setRequired(true));;
+        .setRequired(true))
+          .addStringOption(option =>
+    option.setName('region')
+        .setDescription('The tag of the summoner to add. (Choose na1, euw, kr1)')
+        .setRequired(true));
+    
 
   connectToDatabase();
 
@@ -55,15 +61,18 @@ client.on('interactionCreate', async (interaction) =>{
   if(!interaction.isChatInputCommand()) return;
   
   if(interaction.commandName==='addsummoner'){
+    console.log("adding addsummoner command")
     try {
       await interaction.deferReply();
       const summonerName = interaction.options.getString('summonername');
       const tag = interaction.options.getString('tag');
+      const region = interaction.options.getString('region');
+
 
       var summonerNameAndTag = summonerName + "#" + tag;
       console.log(summonerNameAndTag);
 
-      var summoner_info = await getSummonerInformation(summonerName, tag);
+      var summoner_info = await getSummonerInformation(summonerName, tag, region);
 
       console.log(summoner_info)
        await interaction.editReply(summonerName + ' added successfully!');
@@ -113,6 +122,7 @@ const connectToDatabase = async () => {
 //addSummoner('issariu', 'Grandmaster', 382, 79, 55)
 
 async function getSummonerInformation(){
+  console.log("TRYING GET SUMMONER");
   try{
     const py = spawn('python', ['rankfinder.py']); 
     resultString = '';
@@ -129,11 +139,12 @@ async function getSummonerInformation(){
   }
 }
 
-async function getSummonerInformation(summonerName, tag) {
+async function getSummonerInformation(summonerName, tag, region) {
+  console.log(`Getting information for: ${summonerName} #${tag} in region ${region}`)
   return new Promise((resolve, reject) => {
     try {
       // Make sure to include the path to your Python script accurately
-      const py = spawn('python', ['rankfinder.py', summonerName, tag]);
+      const py = spawn('python', ['rankfinder.py', summonerName, tag, region]);
       let resultString = '';
 
       py.stdout.on('data', (stdData) => {
@@ -166,7 +177,7 @@ async function fetchAllSummoners() {
 }
 
 fetchAllSummoners();
-getSummonerInformation();
+// getSummonerInformation();
 
 
 client.login(process.env.TOKEN);
