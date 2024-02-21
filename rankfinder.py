@@ -1,20 +1,11 @@
 from bs4 import BeautifulSoup
 import urllib3
 import sys
-import re
-
-
-
-
-
+import json
 
 USERNAME = sys.argv[1]
 SERVER = sys.argv[2]
 OFFICIAL_SERVER = sys.argv[3]
-print(USERNAME)
-print(SERVER)
-print(OFFICIAL_SERVER)
-
 
 """
         Parameters
@@ -27,7 +18,6 @@ print(OFFICIAL_SERVER)
 def retrieve_rank(server, username,OFFICIAL_SERVER):
     
     url = f"https://www.op.gg/summoners/{OFFICIAL_SERVER}/{username}-{server.lower()}"
-    print("url is: " + url)
     http = urllib3.PoolManager()
     response = http.request('GET', url, decode_content=True)
     reply = response.data
@@ -52,20 +42,6 @@ def retrieve_rank(server, username,OFFICIAL_SERVER):
     for content in contents:
         if isinstance(content, str) and content != " ":
             div_lp += content
-
-    print(USERNAME)
-    print(div_lp)
-    print(f"{lp} lp")
-    try:
-      print("win/loss")
-      print(win)
-      print(wins)
-      print(losses)
-      print("this is the server output: " + OFFICIAL_SERVER)
-
-    except:
-      print("wins doesn't work")
-
     return {
         'IGN': USERNAME,
         'Rank': div_lp,
@@ -77,7 +53,7 @@ def retrieve_rank(server, username,OFFICIAL_SERVER):
 
 rank = retrieve_rank(SERVER,USERNAME,OFFICIAL_SERVER)
 
-print(rank)
+print(json.dumps(rank))
 # example usage
 #test = retrieve_rank('na', 'Blonde-Blue')
 #print('justin sucks')

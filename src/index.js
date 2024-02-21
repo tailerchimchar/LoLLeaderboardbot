@@ -25,7 +25,14 @@ client.on("ready", (x) => {
   .setName('getallsummoners')
   .setDescription("Retrieve all summoners from the database");
 
-  
+  const removesummoner = new SlashCommandBuilder()
+  .setName('removesummoner')
+  .setDescription("Removing a summoner from the database")
+  .addStringOption(option =>
+    option.setName('summonername')
+        .setDescription('The name of the summoner to remove from the database.')
+        .setRequired(true));
+
   const addsummoner = new SlashCommandBuilder()
   .setName('addsummoner')
   .setDescription("Adding in a summoner to the database")
@@ -41,6 +48,8 @@ client.on("ready", (x) => {
     option.setName('region')
         .setDescription('The tag of the summoner to add. (Choose na1, euw, kr1)')
         .setRequired(true));
+
+      
     
 
   connectToDatabase();
@@ -49,6 +58,7 @@ client.on("ready", (x) => {
   try{
     client.application.commands.create(getallsummoners);
     client.application.commands.create(addsummoner);
+    client.application.commands.create(removesummoner);
 
     console.log('Commands registered successfully');
 
@@ -60,25 +70,50 @@ client.on("ready", (x) => {
 client.on('interactionCreate', async (interaction) =>{
   if(!interaction.isChatInputCommand()) return;
   
+  if(interaction.commandName==='removesummoner'){
+    try{
+      console.log("Calling removesummoner command")
+      await interaction.deferReply();
+      const summonerName = interaction.options.getString('summonername');
+      console.log("removing " + summonerName + " from the database");
+      removeSummonerByIGN(summonerName);
+      await interaction.editReply(`${summonerName} removed successfully!`);
+    }
+    catch (error){
+      console.error('Error removing summoner:', error);
+      interaction.reply('Failed to remove summoner.');
+    }
+    
+  }
+
   if(interaction.commandName==='addsummoner'){
-    console.log("adding addsummoner command")
+    console.log("Calling addsummoner command")
     try {
       await interaction.deferReply();
       const summonerName = interaction.options.getString('summonername');
       const tag = interaction.options.getString('tag');
       const region = interaction.options.getString('region');
 
-
       var summonerNameAndTag = summonerName + "#" + tag;
       console.log(summonerNameAndTag);
 
       var summoner_info = await getSummonerInformation(summonerName, tag, region);
+      console.log(`Here is information about summoner ${summonerName}`);
+      console.log(`Summoner info: ${summoner_info}`);
+      var ign = summoner_info.IGN.toString(); 
+      var losses = Number(summoner_info.Losses); 
+      var wins = Number(summoner_info.Wins); 
+      var winrate = Number(summoner_info.Winrate.replace('%', ''));
+      var rank = summoner_info.Rank.toString(); 
+      var lp = Number(summoner_info.LP);
 
-      console.log(summoner_info)
-       await interaction.editReply(summonerName + ' added successfully!');
+      addSummoner(ign, rank, lp, wins, losses)
+      await interaction.editReply(`${summonerName} added successfully!\nDetails: ${JSON.stringify(summoner_info)}`);
+
+
       }catch (error) {
     console.error('Error adding summoner:', error);
-    await interaction.reply('Failed to add summoner.');
+    interaction.reply('Failed to add summoner.');
   }
 }
 
@@ -111,8 +146,38 @@ const connectToDatabase = async () => {
   }
 };
 
+async function addSummoner(IGN, Rank, LP, Wins, Losses) {
+  const winRate = Wins / (Wins + Losses) * 100;
+  const summoner = new Summoner({
+    IGN,
+    Rank,
+    LP,
+    Wins,
+    Losses,
+    WinRate: winRate
+  });
+  try {
+    const result = await summoner.save();
+    console.log(result);
+  } catch (error) {
+    console.error('Error saving the summoner:', error);
+  }
+}
 
+async function removeSummonerByIGN(ign) {
+  try {
+    const result = await Summoner.deleteOne({ IGN: ign });
+    if (result.deletedCount === 0) {
+      console.log('No summoner found with the given IGN.');
+    } else {
+      console.log('Summoner removed successfully.');
+    }
+  } catch (error) {
+    console.error('Error removing the summoner:', error);
+  }
+}
 
+// example usage
 //addSummoner('Summoner1', 'Grandmaster', 500, 200, 100);
 //addSummoner('Summoner2', 'Master', 400, 150, 80);
 //addSummoner('Summoner3', 'Diamond', 300, 120, 60);
@@ -139,7 +204,7 @@ async function getSummonerInformation(){
   }
 }
 
-async function getSummonerInformation(summonerName, tag, region) {
+async function getSummonerInformation(summonerName, tag, region, callback) {
   console.log(`Getting information for: ${summonerName} #${tag} in region ${region}`)
   return new Promise((resolve, reject) => {
     try {
@@ -152,8 +217,8 @@ async function getSummonerInformation(summonerName, tag, region) {
       });
 
       py.stdout.on('end', () => {
-        resolve(resultString);
-      });
+        const parsedResult = JSON.parse(resultString);
+        resolve(parsedResult);      });
 
       py.stderr.on('data', (data) => {
         reject(data.toString());
@@ -165,7 +230,6 @@ async function getSummonerInformation(summonerName, tag, region) {
     }
   });
 }
-
 
 async function fetchAllSummoners() {
   try {
