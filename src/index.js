@@ -1,5 +1,5 @@
 require('dotenv').config();
-const spawn = require('child_process').spawn; 
+const { spawn } = require('child_process');
 const {Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField, Permissions, SlashCommandBuilder} = require('discord.js');
 const client = new Client({intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]})
 const mongoose = require('mongoose');
@@ -25,9 +25,32 @@ client.on("ready", (x) => {
   .setName('getallsummoners')
   .setDescription("Retrieve all summoners from the database");
 
+  const removesummoner = new SlashCommandBuilder()
+  .setName('removesummoner')
+  .setDescription("Removing a summoner from the database")
+  .addStringOption(option =>
+    option.setName('summonername')
+        .setDescription('The name of the summoner to remove from the database.')
+        .setRequired(true));
+
   const addsummoner = new SlashCommandBuilder()
   .setName('addsummoner')
-  .setDescription("Adding in a summoner to the database");
+  .setDescription("Adding in a summoner to the database")
+  .addStringOption(option =>
+    option.setName('summonername')
+        .setDescription('The name of the summoner to add.')
+        .setRequired(true))
+          .addStringOption(option =>
+    option.setName('tag')
+        .setDescription('The tag of the summoner to add.')
+        .setRequired(true))
+          .addStringOption(option =>
+    option.setName('region')
+        .setDescription('The tag of the summoner to add. (Choose na1, euw, kr1)')
+        .setRequired(true));
+
+      
+    
 
   connectToDatabase();
 
@@ -35,6 +58,7 @@ client.on("ready", (x) => {
   try{
     client.application.commands.create(getallsummoners);
     client.application.commands.create(addsummoner);
+    client.application.commands.create(removesummoner);
 
     console.log('Commands registered successfully');
 
@@ -46,9 +70,53 @@ client.on("ready", (x) => {
 client.on('interactionCreate', async (interaction) =>{
   if(!interaction.isChatInputCommand()) return;
   
-  if(interaction.commandName==='addsummoner'){
-    interaction.reply('adding in a new summoner!');
+  if(interaction.commandName==='removesummoner'){
+    try{
+      console.log("Calling removesummoner command")
+      await interaction.deferReply();
+      const summonerName = interaction.options.getString('summonername');
+      console.log("removing " + summonerName + " from the database");
+      removeSummonerByIGN(summonerName);
+      await interaction.editReply(`${summonerName} removed successfully!`);
+    }
+    catch (error){
+      console.error('Error removing summoner:', error);
+      interaction.reply('Failed to remove summoner.');
+    }
+    
   }
+
+  if(interaction.commandName==='addsummoner'){
+    console.log("Calling addsummoner command")
+    try {
+      await interaction.deferReply();
+      const summonerName = interaction.options.getString('summonername');
+      const tag = interaction.options.getString('tag');
+      const region = interaction.options.getString('region');
+
+      var summonerNameAndTag = summonerName + "#" + tag;
+      console.log(summonerNameAndTag);
+
+      var summoner_info = await getSummonerInformation(summonerName, tag, region);
+      console.log(`Here is information about summoner ${summonerName}`);
+      console.log(`Summoner info: ${summoner_info}`);
+      var ign = summoner_info.IGN.toString(); 
+      var losses = Number(summoner_info.Losses); 
+      var wins = Number(summoner_info.Wins); 
+      var winrate = Number(summoner_info.Winrate.replace('%', ''));
+      var rank = summoner_info.Rank.toString(); 
+      var lp = Number(summoner_info.LP);
+
+      addSummoner(ign, rank, lp, wins, losses)
+      await interaction.editReply(`${summonerName} added successfully!\nDetails: ${JSON.stringify(summoner_info)}`);
+
+
+      }catch (error) {
+    console.error('Error adding summoner:', error);
+    interaction.reply('Failed to add summoner.');
+  }
+}
+
   else if (interaction.commandName === 'getallsummoners') 
   {
     try 
@@ -80,7 +148,6 @@ const connectToDatabase = async () => {
 
 async function addSummoner(IGN, Rank, LP, Wins, Losses) {
   const winRate = Wins / (Wins + Losses) * 100;
-  
   const summoner = new Summoner({
     IGN,
     Rank,
@@ -89,7 +156,6 @@ async function addSummoner(IGN, Rank, LP, Wins, Losses) {
     Losses,
     WinRate: winRate
   });
-
   try {
     const result = await summoner.save();
     console.log(result);
@@ -98,6 +164,20 @@ async function addSummoner(IGN, Rank, LP, Wins, Losses) {
   }
 }
 
+async function removeSummonerByIGN(ign) {
+  try {
+    const result = await Summoner.deleteOne({ IGN: ign });
+    if (result.deletedCount === 0) {
+      console.log('No summoner found with the given IGN.');
+    } else {
+      console.log('Summoner removed successfully.');
+    }
+  } catch (error) {
+    console.error('Error removing the summoner:', error);
+  }
+}
+
+// example usage
 //addSummoner('Summoner1', 'Grandmaster', 500, 200, 100);
 //addSummoner('Summoner2', 'Master', 400, 150, 80);
 //addSummoner('Summoner3', 'Diamond', 300, 120, 60);
@@ -107,23 +187,48 @@ async function addSummoner(IGN, Rank, LP, Wins, Losses) {
 //addSummoner('issariu', 'Grandmaster', 382, 79, 55)
 
 async function getSummonerInformation(){
+  console.log("TRYING GET SUMMONER");
   try{
     const py = spawn('python', ['rankfinder.py']); 
-    resultString = ''; 
+    resultString = '';
     py.stdout.on('data', function (stdData) { 
       resultString += stdData.toString(); 
     }); 
 
     py.stdout.on('end', function () { 
       let resultData = resultString; 
-      
-      let test = resultData; 
-      console.log(test); 
     });
   }
   catch (error){
     console.log(error);
   }
+}
+
+async function getSummonerInformation(summonerName, tag, region, callback) {
+  console.log(`Getting information for: ${summonerName} #${tag} in region ${region}`)
+  return new Promise((resolve, reject) => {
+    try {
+      // Make sure to include the path to your Python script accurately
+      const py = spawn('python', ['rankfinder.py', summonerName, tag, region]);
+      let resultString = '';
+
+      py.stdout.on('data', (stdData) => {
+        resultString += stdData.toString();
+      });
+
+      py.stdout.on('end', () => {
+        const parsedResult = JSON.parse(resultString);
+        resolve(parsedResult);      });
+
+      py.stderr.on('data', (data) => {
+        reject(data.toString());
+      });
+
+    } catch (error) {
+      console.log(error);
+      reject(error);
+    }
+  });
 }
 
 async function fetchAllSummoners() {
@@ -136,7 +241,7 @@ async function fetchAllSummoners() {
 }
 
 fetchAllSummoners();
-getSummonerInformation();
+// getSummonerInformation();
 
 
 client.login(process.env.TOKEN);
