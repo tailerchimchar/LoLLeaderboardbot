@@ -23,6 +23,9 @@ def retrieve_rank(server, username,OFFICIAL_SERVER):
     reply = response.data
 
     soup = BeautifulSoup(reply, 'html.parser')
+    #lp = soup.find("div", class= "lp").text
+    lp = soup.find('div', class_='lp').contents[0]
+    # lp = soup.find("div", {"class": "lp"}).contents[0]
     tier_div = soup.find("div", {"class": "tier"})
     win = soup.find("div", {"class": "win-lose"}).text
     win_lose_parts = win.split()
@@ -34,7 +37,6 @@ def retrieve_rank(server, username,OFFICIAL_SERVER):
     winrate = (wins / total_games * 100) if total_games > 0 else 0
 
     contents = tier_div.contents
-    lp = soup.find("div", {"class": "lp"}).contents[0]
     #wins = soup.find("div", {"class": "wins"}).contents[0]
     
     div_lp = ""
@@ -56,8 +58,8 @@ rank = retrieve_rank(SERVER,USERNAME,OFFICIAL_SERVER)
 print(json.dumps(rank))
 # example usage
 #test = retrieve_rank('na', 'Blonde-Blue')
+retrieve_rank('na1', 'Noodlz', 'na')
 #print('justin sucks')
-#print(test)
 #print()
 #retrieve_rank('na', 'issariu-NA1')
 #print()
