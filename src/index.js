@@ -88,7 +88,6 @@ client.on('interactionCreate', async (interaction) =>{
 
   if(interaction.commandName==='addsummoner'){
     console.log("Calling addsummoner command")
-    try {
       await interaction.deferReply();
       const summonerName = interaction.options.getString('summonername');
       const tag = interaction.options.getString('tag');
@@ -97,23 +96,27 @@ client.on('interactionCreate', async (interaction) =>{
       var summonerNameAndTag = summonerName + "#" + tag;
       console.log(summonerNameAndTag);
 
-      var summoner_info = await getSummonerInformation(summonerName, tag, region);
-      console.log(`Here is information about summoner ${summonerName}`);
-      console.log(`Summoner info: ${summoner_info}`);
-      var ign = summoner_info.IGN.toString(); 
-      var losses = Number(summoner_info.Losses); 
-      var wins = Number(summoner_info.Wins); 
-      var winrate = Number(summoner_info.Winrate.replace('%', ''));
-      var rank = summoner_info.Rank.toString(); 
-      var lp = Number(summoner_info.LP);
-
-      addSummoner(ign, rank, lp, wins, losses)
-      await interaction.editReply(`${summonerName} added successfully!\nDetails: ${JSON.stringify(summoner_info)}`);
-
-
-      }catch (error) {
-    console.error('Error adding summoner:', error);
-    interaction.reply('Failed to add summoner.');
+      const summoners = await Summoner.find();
+      if (summoners.some(summoner => summoner.IGN.toLowerCase() === "noodlz")) {
+        await interaction.editReply(`${summonerName} is already added to the database`);
+      }else{
+        try {
+          var summoner_info = await getSummonerInformation(summonerName, tag, region);
+          console.log(`Here is information about summoner ${summonerName}`);
+          console.log(`Summoner info: ${summoner_info}`);
+          var ign = summoner_info.IGN.toString(); 
+          var losses = Number(summoner_info.Losses); 
+          var wins = Number(summoner_info.Wins); 
+          var winrate = Number(summoner_info.Winrate.replace('%', ''));
+          var rank = summoner_info.Rank.toString(); 
+          var lp = Number(summoner_info.LP);
+  
+          addSummoner(ign, rank, lp, wins, losses)
+          await interaction.editReply(`${summonerName} added successfully!\nDetails: ${JSON.stringify(summoner_info)}`);
+        }catch (error) {
+      console.error('Error adding summoner:', error);
+      interaction.reply('Failed to add summoner.');
+      }
   }
 }
 
@@ -121,10 +124,12 @@ client.on('interactionCreate', async (interaction) =>{
   {
     try 
     {
+      console.log("Get all summoners called");
       const summoners = await Summoner.find();
+      sortSummoners(summoners);
       let message = 'Summoners:\n';
       summoners.forEach((summoner, index) => {
-        message += `${index + 1}. IGN: ${summoner.IGN}, Rank: ${summoner.Rank}, LP: ${summoner.LP}, Wins: ${summoner.Wins}, Losses: ${summoner.Losses}, WinRate: ${summoner.WinRate}%\n`;
+        message += `${index + 1}. IGN: ${summoner.IGN}, Rank: ${summoner.Rank}, LP: ${summoner.LP}, Wins: ${summoner.Wins}, Losses: ${summoner.Losses}, WinRate: ${summoner.WinRate.toFixed(2)}%\n`;
       });
       await interaction.reply(message);
     } catch (error) {
@@ -137,8 +142,7 @@ client.on('interactionCreate', async (interaction) =>{
 const connectToDatabase = async () => {
   try {
     await mongoose.connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
+
     });
     console.log("Connected to db");
   } catch (error) {
@@ -162,6 +166,80 @@ async function addSummoner(IGN, Rank, LP, Wins, Losses) {
   } catch (error) {
     console.error('Error saving the summoner:', error);
   }
+}
+
+function convertRankToValue(summoner){
+  let summonerRank = summoner.Rank;
+  let summonerLp = parseInt(summoner.LP);
+
+  if(summonerRank.includes("1")){
+    summonerLp+=50;
+  }else if(summonerRank.includes("2")){
+    summonerLp+=40
+  }else if(summonerRank.includes("3")){
+    summonerLp+=30
+  }else if(summonerRank.includes("4")){
+    summonerLp+=20
+  }
+
+
+  switch(summonerRank.split(" ")[0].toString().toLowerCase()){
+    case "master":
+      summonerLp+=700;
+      break;
+    case "grandmaster":
+      summonerLp+=700;
+      break;
+    case "challenger":
+      summonerLp+=700;
+      break;
+    case "diamond":
+      summonerLp += 600; 
+      break;
+    case "emerald":
+        summonerLp += 500; 
+        break;
+    case "platinum":
+      summonerLp += 400;
+      break;
+    case "gold":
+      summonerLp += 300;
+      break;
+    case "silver":
+        summonerLp += 200;
+        break;
+    case "bronze":
+      summonerLp += 100;
+      break;
+    case "iron": 
+      summonerLp += 0;
+      break;
+    default: 
+      summonerLp +=0;
+      break;
+  }
+
+  return summonerLp;
+
+}
+
+function sortSummoners(summoners) {
+  // iron = 0, bronze = 100, silver = 200, gold = 300, plat = 400, diamond = 500
+  // based on tier, then that is +10, so bronze 2 = 120, bronze 1 = 150
+
+  summoners.sort((a, b) => {
+    aLP = convertRankToValue(a);
+    bLP = convertRankToValue(b);
+    return bLP - aLP;
+  });
+
+  var message = "";
+  summoners.forEach((summoner, index) => {
+    let summonersLp = convertRankToValue(summoner);
+    console.log(summonersLp);
+    message += `${index + 1}. IGN: ${summoner.IGN}, Rank: ${summoner.Rank}, LP: ${summoner.LP}, Wins: ${summoner.Wins}, Losses: ${summoner.Losses}, WinRate: ${summoner.WinRate.toFixed(2)}%\n`;
+  });
+  console.log(message);
 }
 
 async function removeSummonerByIGN(ign) {
@@ -205,7 +283,7 @@ async function getSummonerInformation(){
 }
 
 async function getSummonerInformation(summonerName, tag, region, callback) {
-  console.log(`Getting information for: ${summonerName} #${tag} in region ${region}`)
+  //console.log(`Getting information for: ${summonerName} #${tag} in region ${region}`)
   return new Promise((resolve, reject) => {
     try {
       // Make sure to include the path to your Python script accurately
@@ -241,6 +319,7 @@ async function fetchAllSummoners() {
 }
 
 fetchAllSummoners();
+//sortSummoners();
 // getSummonerInformation();
 
 
