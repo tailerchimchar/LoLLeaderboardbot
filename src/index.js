@@ -1,5 +1,6 @@
 require('dotenv').config();
 const { spawn } = require('child_process');
+const { error } = require('console');
 const {Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField, Permissions, SlashCommandBuilder} = require('discord.js');
 const client = new Client({intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]})
 const mongoose = require('mongoose');
@@ -11,7 +12,9 @@ const summonerSchema = new mongoose.Schema({
   LP: { type: Number, required: true },
   Wins: { type: Number, required: true },
   Losses: { type: Number, required: true },
-  WinRate: { type: Number, required: true }
+  WinRate: { type: Number, required: true },
+  Server: { type: String, required: true },
+  Tag: { type: String, required: true }
 });
 
 const Summoner = mongoose.model('Summoner', summonerSchema);
@@ -97,7 +100,7 @@ client.on('interactionCreate', async (interaction) =>{
       console.log(summonerNameAndTag);
 
       const summoners = await Summoner.find();
-      if (summoners.some(summoner => summoner.IGN.toLowerCase() === "noodlz")) {
+      if (summoners.some(summoner => summoner.IGN.toLowerCase() === "summonerName")) {
         await interaction.editReply(`${summonerName} is already added to the database`);
       }else{
         try {
@@ -111,8 +114,12 @@ client.on('interactionCreate', async (interaction) =>{
           var rank = summoner_info.Rank.toString(); 
           var lp = Number(summoner_info.LP);
   
-          addSummoner(ign, rank, lp, wins, losses)
-          await interaction.editReply(`${summonerName} added successfully!\nDetails: ${JSON.stringify(summoner_info)}`);
+          addSummoner(ign.toUpperCase(), rank, lp, wins, losses, tag, region)
+          if(ign === "User does not exist"){
+            await interaction.editReply(`Summoner ${summonerName} does not exist. Please enter a different name.`);
+          }else{
+            await interaction.editReply(`${summonerName} has been added successfully!\nDetails: ${JSON.stringify(summoner_info)}`);
+          }
         }catch (error) {
       console.error('Error adding summoner:', error);
       interaction.reply('Failed to add summoner.');
@@ -127,10 +134,23 @@ client.on('interactionCreate', async (interaction) =>{
       console.log("Get all summoners called");
       const summoners = await Summoner.find();
       sortSummoners(summoners);
-      let message = 'Summoners:\n';
+      let message = "```\tIGN".padEnd(20) + "Rank".padEnd(20) + "LP".padEnd(10) + 
+            "Wins".padEnd(10) + "Losses".padEnd(10) + "Winrate\n";
+      message += "-".repeat(80) + "\n"; // Adds a separator
+
       summoners.forEach((summoner, index) => {
-        message += `${index + 1}. IGN: ${summoner.IGN}, Rank: ${summoner.Rank}, LP: ${summoner.LP}, Wins: ${summoner.Wins}, Losses: ${summoner.Losses}, WinRate: ${summoner.WinRate.toFixed(2)}%\n`;
+      message += `${(index + 1) + "."}`.padEnd(5) + 
+            `${summoner.IGN}`.padEnd(15) + 
+            `${summoner.Rank}`.padEnd(20) + 
+            `${summoner.LP}`.padEnd(10) + 
+            `${summoner.Wins}`.padEnd(10) + 
+            `${summoner.Losses}`.padEnd(10) + 
+            `${summoner.WinRate.toFixed(2)}%`.padEnd(10) + "\n";
       });
+      message+="```";
+
+      console.log(message);
+
       await interaction.reply(message);
     } catch (error) {
       console.error('Error fetching summoners:', error);
@@ -150,7 +170,7 @@ const connectToDatabase = async () => {
   }
 };
 
-async function addSummoner(IGN, Rank, LP, Wins, Losses) {
+async function addSummoner(IGN, Rank, LP, Wins, Losses, Tag, Server) {
   const winRate = Wins / (Wins + Losses) * 100;
   const summoner = new Summoner({
     IGN,
@@ -158,7 +178,9 @@ async function addSummoner(IGN, Rank, LP, Wins, Losses) {
     LP,
     Wins,
     Losses,
-    WinRate: winRate
+    WinRate: winRate,
+    Tag,
+    Server
   });
   try {
     const result = await summoner.save();
@@ -166,6 +188,7 @@ async function addSummoner(IGN, Rank, LP, Wins, Losses) {
   } catch (error) {
     console.error('Error saving the summoner:', error);
   }
+  updateSummoners();
 }
 
 function convertRankToValue(summoner){
@@ -223,6 +246,43 @@ function convertRankToValue(summoner){
 
 }
 
+async function updateSummoners(){
+  console.log("Update function called");
+  const summoners = await Summoner.find(); 
+
+  summoners.forEach(async (summoner, index) => {
+    console.log("Changing summoner " + summoner.IGN);
+    let old_message = "Old Summoners:\n";
+    old_message += `${index + 1}. IGN: ${summoner.IGN}, Rank: ${summoner.Rank}, LP: ${summoner.LP}, Wins: ${summoner.Wins}, Losses: ${summoner.Losses}, WinRate: ${summoner.WinRate.toFixed(2)}%\n`;
+
+
+    console.log(old_message);
+
+    let summoner_info = await getSummonerInformation(summoner.IGN, summoner.Tag, summoner.Server);
+    var ign = summoner_info.IGN.toString(); 
+    var losses = Number(summoner_info.Losses); 
+    var wins = Number(summoner_info.Wins); 
+    var winrate = Number(summoner_info.Winrate.replace('%', ''));
+    var rank = summoner_info.Rank.toString(); 
+    var lp = Number(summoner_info.LP);
+
+    summoner.IGN = ign;
+    summoner.Losses = losses;
+    summoner.Wins = wins;
+    summoner.Winrate = winrate;
+    summoner.LP = lp;
+    summoner.Rank = rank;
+
+    try {
+      const result = await summoner.save();
+      console.log(result);
+    } catch (error) {
+      console.error('Error saving the summoner:', error);
+    }
+  });
+
+}
+
 function sortSummoners(summoners) {
   // iron = 0, bronze = 100, silver = 200, gold = 300, plat = 400, diamond = 500
   // based on tier, then that is +10, so bronze 2 = 120, bronze 1 = 150
@@ -240,6 +300,7 @@ function sortSummoners(summoners) {
     message += `${index + 1}. IGN: ${summoner.IGN}, Rank: ${summoner.Rank}, LP: ${summoner.LP}, Wins: ${summoner.Wins}, Losses: ${summoner.Losses}, WinRate: ${summoner.WinRate.toFixed(2)}%\n`;
   });
   console.log(message);
+  updateSummoners();
 }
 
 async function removeSummonerByIGN(ign) {
@@ -248,39 +309,22 @@ async function removeSummonerByIGN(ign) {
     if (result.deletedCount === 0) {
       console.log('No summoner found with the given IGN.');
     } else {
-      console.log('Summoner removed successfully.');
+      console.log('Summoner ' + ign + ' removed successfully.');
     }
   } catch (error) {
     console.error('Error removing the summoner:', error);
   }
+  updateSummoners();
 }
 
 // example usage
-//addSummoner('Summoner1', 'Grandmaster', 500, 200, 100);
-//addSummoner('Summoner2', 'Master', 400, 150, 80);
-//addSummoner('Summoner3', 'Diamond', 300, 120, 60);
-//addSummoner('Summoner4', 'Platinum', 200, 100, 50);
-//addSummoner('Summoner5', 'Gold', 100, 80, 40);
+// addSummoner('Summoner1', 'Grandmaster', 500, 200, 100, na1, na);
+// addSummoner('Summoner2', 'Master', 400, 150, 80, na1, na);
+// addSummoner('Summoner3', 'Diamond', 300, 120, 60, na1, na);
+// addSummoner('Summoner4', 'Platinum', 200, 100, 50, na1, na);
+// addSummoner('Summoner5', 'Gold', 100, 80, 40, na1, na);
 
 //addSummoner('issariu', 'Grandmaster', 382, 79, 55)
-
-async function getSummonerInformation(){
-  console.log("TRYING GET SUMMONER");
-  try{
-    const py = spawn('python', ['rankfinder.py']); 
-    resultString = '';
-    py.stdout.on('data', function (stdData) { 
-      resultString += stdData.toString(); 
-    }); 
-
-    py.stdout.on('end', function () { 
-      let resultData = resultString; 
-    });
-  }
-  catch (error){
-    console.log(error);
-  }
-}
 
 async function getSummonerInformation(summonerName, tag, region, callback) {
   //console.log(`Getting information for: ${summonerName} #${tag} in region ${region}`)
@@ -295,8 +339,22 @@ async function getSummonerInformation(summonerName, tag, region, callback) {
       });
 
       py.stdout.on('end', () => {
-        const parsedResult = JSON.parse(resultString);
-        resolve(parsedResult);      });
+        try{
+          let resultData = JSON.parse(resultString.trim());
+          if (resultData.error) {
+            console.log("Summoner not found:", username);
+            resolve(null); // ✅ Return `null` instead of crashing
+          } else {
+            resolve(resultData); // ✅ Return valid summoner data
+          }
+          //const parsedResult = JSON.parse(resultString);
+          //resolve(parsedResult);  
+        }
+        catch (err) {
+        console.error("Invalid JSON received:", resultString);
+        resolve(null); // ✅ Continue execution instead of crashing
+      }
+      });
 
       py.stderr.on('data', (data) => {
         reject(data.toString());

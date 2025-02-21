@@ -23,6 +23,23 @@ def retrieve_rank(server, username,OFFICIAL_SERVER):
     reply = response.data
 
     soup = BeautifulSoup(reply, 'html.parser')
+
+    # trying to see if summoner exists
+    testUrl = soup.find('h1').text
+    summoner_does_not_exist = "No search results for" in testUrl
+
+    if(summoner_does_not_exist):
+        fakeDummy = {
+        'IGN': 'User does not exist',
+        'Rank': "iron",
+        'LP': 0,
+        'Wins': 0,
+        'Losses': 0,
+        'Winrate': "00.00%"
+        }
+        
+        return fakeDummy
+
     #lp = soup.find("div", class= "lp").text
     lp = soup.find('div', class_='lp').contents[0]
     # lp = soup.find("div", {"class": "lp"}).contents[0]
